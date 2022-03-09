@@ -1,12 +1,16 @@
 import torch
 
-from torchvision import datasets
-from torchvision.transforms import ToTensor, CenterCrop, Grayscale
+from torch import nn
+from torch.optim import SGD
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+import tensorflow as tf
 from torchsummary import summary
 
 import argparse
-
-
+import numpy as np
+from matplotlib import pyplot as plt
+import random
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")#use GPU if available
@@ -34,67 +38,80 @@ if dataset_name not in ["CIFAR10","MNIST","FashionMNIST"]: #TODO: Finalize datas
 
 #load CIFAR10
 if dataset_name == "CIFAR10":
-    train_data = datasets.CIFAR10(
-    root="data",
-    train=True,
-    download=True,
-    transform=[CenterCrop(28),Grayscale(),ToTensor()]
-    ) #load train data from torchvision
+    cifar10 = tf.keras.datasets.cifar10
 
-    test_data = datasets.CIFAR10(
-        root="data",
-        train=False,
-        download=True,
-        transform=[CenterCrop(28),Grayscale(),ToTensor()]
-    ) #load test data from torchvision
-
+    (train_images, train_labels), (test_images, test_labels) = cifar10.load_data()
+    train_images = tf.image.rgb_to_grayscale(train_images, name=None)
+    train_images = tf.image.central_crop(train_images, .875)
 
 
 #load FashionMNIST
 if dataset_name == "FashionMNIST":
-    train_data = datasets.FashionMNIST(
-    root="data",
-    train=True,
-    download=True,
-    transform=ToTensor()
-    ) #load train data from torchvision
+    cifar10 = tf.keras.datasets.fashion_mnist
 
-    test_data = datasets.FashionMNIST(
-        root="data",
-        train=False,
-        download=True,
-        transform=ToTensor()
-    ) #load test data from torchvision
-
-
+    (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
 
 
 #load MNIST
 if dataset_name == "MNIST":
-    train_data = datasets.MNIST(
-    root="data",
-    train=True,
-    download=True,
-    transform=ToTensor()
-    ) #load train data from torchvision
+    mnist = tf.keras.datasets.mnist
 
-    test_data = datasets.MNIST(
-        root="data",
-        train=False,
-        download=True,
-        transform=ToTensor()
-    ) #load test data from torchvision
+    (train_images, train_labels), (test_images, test_labels) = mnist.load_data()
 
-train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
-test_loader = torch.utils.data.DataLoader(test_data, batch_size=32, shuffle=False)
 
-print("train_data:", train_data,"\n")
-print("test_data:", test_data,"\n")
+print("Dataset Dowloaded")
+
+train_images = np.array(train_images).reshape(-1,1,28,28)
+
+train_images = train_images / 255.0
+test_images = test_images / 255.0
+
+ds_list = [(train_images[i], train_labels[i]) for i in range(len(train_labels))]
+print(ds_list[0])
+random.shuffle(ds_list)
+print(ds_list[0])
+
+train_loader = torch.utils.data.DataLoader(ds_list[:training_samples], batch_size=batch_size)
+test_loader = torch.utils.data.DataLoader([(test_images[i],test_labels[i]) for i in range(len(test_labels))],shuffle=True,batch_size=batch_size)
+
 
 print("Train_Loader Iters:",len(train_loader),"\n")
 print("Test_Loader Iters:",len(test_loader),"\n")
 
-total_batches = int(training_samples/batch_size)
-print("Total Batches:", total_batches)
-
 summary(model, (1,28,28,1))
+
+
+for b in train_loader:
+    x,y = b
+    print(x.shape)
+    plt.imshow(x.reshape(28,28))
+    print(y)
+    plt.show()
+
+
+
+optim = torch.optim.SGD(model.parameters(), lr=.01, momentum=0.9)
+scheduler = ReduceLROnPlateau(optim, 'min')
+
+plateau = 0
+min_loss = 0
+patience = 100
+# done = False
+# for e in range(1000):
+#     #training and validation
+#     for 
+#         optim.zero_grad()
+
+
+
+#         if min_loss < loss:
+#             plateau += 1
+#         else:
+#             plateau = 0
+
+#         min_loss = min(loss,min_loss)
+
+#         if plateau >= patience:
+#             done = True
+#     if done:
+#         break
