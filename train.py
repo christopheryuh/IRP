@@ -28,7 +28,7 @@ batch_size = args.batch_size
 model_path = args.model_path
 dataset_name = args.dataset
 
-model = torch.load(model_path)
+model = torch.load(model_path).to(device)
 
 
 #load dataset
@@ -92,26 +92,53 @@ for b in train_loader:
 
 optim = torch.optim.SGD(model.parameters(), lr=.01, momentum=0.9)
 scheduler = ReduceLROnPlateau(optim, 'min')
+loss_fn = nn.CrossEntropyLoss()
 
 plateau = 0
 min_loss = 0
 patience = 100
-# done = False
-# for e in range(1000):
-#     #training and validation
-#     for 
-#         optim.zero_grad()
+done = False
+
+losslist = []
+
+#TODO: ADD VALIDATON
+
+for e in range(500):
+
+    e_steps = 1 
+    e_losslist = []
+    #training and validation
+    for batch in train_loader:
+        x,y = batch
+        x.to(device)
+        y.to(device)
+        optim.zero_grad()
+
+        y_hat = model(x)
+        loss = loss_fn(y_hat,y)
+
+        #TODO: Tensorboard
 
 
 
-#         if min_loss < loss:
-#             plateau += 1
-#         else:
-#             plateau = 0
 
-#         min_loss = min(loss,min_loss)
+        e_losslist.append(loss)
 
-#         if plateau >= patience:
-#             done = True
-#     if done:
-#         break
+        e_steps += 1 
+
+        if min_loss < loss:
+            plateau += 1
+        else:
+            plateau = 0
+
+        min_loss = min(loss,min_loss)
+
+        if plateau >= patience:
+            done = True
+    losslist.append(sum(e_losslist)/e_steps)#avg loss over epoch
+    
+    if done:
+        break
+
+
+#TODO: save to a .csv
