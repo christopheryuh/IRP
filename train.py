@@ -36,7 +36,7 @@ model_path = args.model_path
 dataset_name = args.dataset
 
 model = torch.load(model_path).to(device)
-
+print(next(model.parameters()).is_cuda)
 
 #load dataset
 
@@ -101,7 +101,7 @@ print("Test_Loader Iters:",len(test_loader),"\n")
 
 
 
-optim = torch.optim.Adam(model.parameters(), lr=.1)
+optim = torch.optim.Adam(model.parameters(), lr=.1).to(device)
 #scheduler = ReduceLROnPlateau(optim, 'min', factor=0.5)
 loss_fn = nn.CrossEntropyLoss()
 
@@ -124,6 +124,10 @@ for e in tqdm(range(5000)):
     for batch in train_loader:
         x,y = batch
         optim.zero_grad()
+        y = y.long().to(device)
+        x = x.to(device).float().to(device)
+        print("x,y:",x.is_cuda, y.is_cuda)
+
 
         y_hat = model(x.to(device).float().to(device))
         loss = loss_fn(y_hat,y.long().to(device))
