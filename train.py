@@ -10,6 +10,8 @@ from torchsummary import summary
 
 from tqdm import tqdm
 
+from torch.nn import functional as F
+
 import argparse
 import numpy as np
 from matplotlib import pyplot as plt
@@ -121,12 +123,10 @@ for e in tqdm(range(5000)):
     #training and validation
     for batch in train_loader:
         x,y = batch
-        x.to(device)
-        y.to(device)
         optim.zero_grad()
 
-        y_hat = model(x.float())
-        loss = loss_fn(y_hat,y)
+        y_hat = model(x.to(device).float().to(device))
+        loss = loss_fn(y_hat,y.long().to(device))
         loss.backward()
         optim.step()
 
