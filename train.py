@@ -1,3 +1,4 @@
+from cmath import log
 import torch
 
 from torch import nn
@@ -7,10 +8,14 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import tensorflow as tf
 from torchsummary import summary
 
+from tqdm import tqdm
+
 import argparse
 import numpy as np
 from matplotlib import pyplot as plt
 import random
+from torch.utils.tensorboard import SummaryWriter
+
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")#use GPU if available
@@ -52,6 +57,10 @@ if dataset_name == "FashionMNIST":
     (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
 
 
+log_path = f"logs/{dataset_name}/'{model_path}'/{training_samples}"
+print(log_path)
+writer = SummaryWriter(log_dir=log_path)
+
 #load MNIST
 if dataset_name == "MNIST":
     mnist = tf.keras.datasets.mnist
@@ -78,34 +87,36 @@ test_loader = torch.utils.data.DataLoader([(test_images[i],test_labels[i]) for i
 print("Train_Loader Iters:",len(train_loader),"\n")
 print("Test_Loader Iters:",len(test_loader),"\n")
 
-summary(model, (1,28,28,1))
 
 
-for b in train_loader:
-    x,y = b
-    print(x.shape)
-    plt.imshow(x.reshape(28,28))
-    print(y)
-    plt.show()
+#for looking at the data
+# for b in train_loader:
+#     x,y = b
+#     print(x.shape)
+#     plt.imshow(x.reshape(28,28))
+#     print(y)
+#     plt.show()
 
 
 
-optim = torch.optim.SGD(model.parameters(), lr=.01, momentum=0.9)
-scheduler = ReduceLROnPlateau(optim, 'min')
+optim = torch.optim.Adam(model.parameters(), lr=.1)
+#scheduler = ReduceLROnPlateau(optim, 'min', factor=0.5)
 loss_fn = nn.CrossEntropyLoss()
 
 plateau = 0
-min_loss = 0
-patience = 100
+min_loss = np.Infinity
+patience = 300
 done = False
 
+prev_loss = 0
+
 losslist = []
+steps = 0
 
 #TODO: ADD VALIDATON
 
-for e in range(500):
-
-    e_steps = 1 
+for e in tqdm(range(5000)):
+    e_steps = 1
     e_losslist = []
     #training and validation
     for batch in train_loader:
@@ -114,31 +125,44 @@ for e in range(500):
         y.to(device)
         optim.zero_grad()
 
-        y_hat = model(x)
+        y_hat = model(x.float())
         loss = loss_fn(y_hat,y)
+        loss.backward()
+        optim.step()
 
-        #TODO: Tensorboard
-
-
-
-
+        steps += 1
         e_losslist.append(loss)
 
         e_steps += 1 
 
-        if min_loss < loss:
-            plateau += 1
-        else:
-            plateau = 0
-
-        min_loss = min(loss,min_loss)
-
-        if plateau >= patience:
-            done = True
     losslist.append(sum(e_losslist)/e_steps)#avg loss over epoch
-    
+    writer.add_scalar("Train_Loss", sum(e_losslist)/e_steps, e)
+
+    if min_loss < sum(e_losslist)/e_steps:
+        plateau += 1
+    else:
+        plateau = 0
+
+    min_loss = min(loss,min_loss)
+
+    if plateau >= patience:
+        done = True
+
+    with torch.no_grad():
+        accuracylist = []
+        for batch in test_loader:
+            x,y = batch
+            x.to(device)
+            y.to(device)
+
+            y_hat = model(x.float())
+
+            accuracy = ((y_hat.argmax(axis=1)==y).sum()/(y.shape[0]))
+            accuracylist.append(accuracy)
+        final_acc = (sum(accuracylist))/len(accuracylist)
+
+        writer.add_scalar("Test_Accuracy", final_acc, e)
     if done:
         break
 
-
-#TODO: save to a .csv
+#TODO: save to pickle
