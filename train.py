@@ -9,10 +9,6 @@ from torchsummary import summary
 
 from tqdm import tqdm
 
-from torch.nn import functional as F
-
-import gc
-
 import argparse
 import numpy as np
 from matplotlib import pyplot as plt
@@ -23,7 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")#use GPU if available
 
-parser = argparse.ArgumentParser(description="Experiment Perameters")
+parser = argparse.ArgumentParser(description="Experiment Perameters")#get args for the runs
 parser.add_argument('training_samples', metavar='N', type=int)
 parser.add_argument('batch_size', metavar='N', type=int)
 parser.add_argument('model_path', metavar='N', type=str)
@@ -36,12 +32,12 @@ batch_size = args.batch_size
 model_path = args.model_path
 dataset_name = args.dataset
 
-model = torch.load(model_path).to(device)
+model = torch.load(model_path).to(device)#load model
 
 #load dataset
 
-if dataset_name not in ["CIFAR10","MNIST","FashionMNIST"]: #TODO: Finalize datasets
-    raise RuntimeError("Unsupported Dataset") #make sure we have a supported datset
+if dataset_name not in ["CIFAR10","MNIST","FashionMNIST"]: #get datase
+    raise RuntimeError("Unsupported Dataset") #make sure we have a supported datse
 
 #load CIFAR10
 if dataset_name == "CIFAR10":
@@ -59,7 +55,7 @@ if dataset_name == "FashionMNIST":
     (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
 
 
-log_path = f"logs/{dataset_name}/'{model_path}'/{training_samples}"
+log_path = f"logs/{dataset_name}/'{model_path}'/{training_samples}"#tensorboard logging
 print(log_path)
 writer = SummaryWriter(log_dir=log_path)
 
@@ -74,15 +70,15 @@ print("Dataset Dowloaded")
 
 train_images = np.array(train_images).reshape(-1,1,28,28)
 
-train_images = train_images / 255.0
+train_images = train_images / 255.0 #normalize
 test_images = test_images / 255.0
 
-ds_list = [(train_images[i], train_labels[i]) for i in range(len(train_labels))]
-random.shuffle(ds_list)
+ds_list = [(train_images[i], train_labels[i]) for i in range(len(train_labels))]#turn dataset into list with the right corresponding images and labels for shuffling
+random.shuffle(ds_list)#shuffle
 
 
 
-train_loader = torch.utils.data.DataLoader(ds_list[:training_samples], batch_size=batch_size)
+train_loader = torch.utils.data.DataLoader(ds_list[:training_samples], batch_size=batch_size)#get the right number of training samples
 test_loader = torch.utils.data.DataLoader([(test_images[i],test_labels[i]) for i in range(len(test_labels))],shuffle=True,batch_size=batch_size)
 
 del train_images,train_labels,test_images,test_labels
@@ -99,7 +95,7 @@ print("Test_Loader Iters:",len(test_loader),"\n")
 #     plt.imshow(x.reshape(28,28))
 #     print(y)
 #     plt.show()
-
+#I used this to make sure the right labels were with the right images
 
 
 optim = torch.optim.Adam(model.parameters(), lr=.1)
@@ -108,15 +104,13 @@ loss_fn = nn.CrossEntropyLoss()
 
 plateau = 0
 min_loss = np.Infinity
-patience = 300
+patience = 200
 done = False
 
 prev_loss = 0
 
 losslist = []
 steps = 0
-
-#TODO: ADD VALIDATON
 
 for e in tqdm(range(5000)):
     e_steps = 1
@@ -140,7 +134,7 @@ for e in tqdm(range(5000)):
     losslist.append(sum(e_losslist)/e_steps)#avg loss over epoch
     writer.add_scalar("Train_Loss", sum(e_losslist)/e_steps, e)
 
-    if min_loss < sum(e_losslist)/e_steps:
+    if min_loss < sum(e_losslist)/e_steps:#end training at convergance
         plateau += 1
     else:
         plateau = 0
@@ -150,7 +144,9 @@ for e in tqdm(range(5000)):
     if plateau >= patience:
         done = True
 
-    with torch.no_grad():
+    with torch.no_grad():#get validation accuracy and validation loss
+        v_loss = []
+        v_steps = 0
         accuracylist = []
         for batch in test_loader:
             x,y = batch
@@ -162,14 +158,15 @@ for e in tqdm(range(5000)):
 
             loss = loss_fn(y_hat, y.long())
 
+            v_steps += 1
+            v_loss.append(loss)
             accuracy = ((y_hat.argmax(axis=1)==y).sum()/(y.shape[0]))
             accuracylist.append(accuracy)
         final_acc = (sum(accuracylist))/len(accuracylist)
+        final_loss = (sum(v_loss)/v_steps)
 
-        writer.add_scalar("Test_Accuracy", final_acc, e)
-    
-    gc.collect()
-
+        writer.add_scalar("Test_Accuracy", final_acc, e) 
+        writer.add_scalar("Test_loss", final_loss, e)
     if done:
         break
 
