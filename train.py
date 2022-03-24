@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 from torch.nn import functional as F
 
+import gc
+
 import argparse
 import numpy as np
 from matplotlib import pyplot as plt
@@ -36,7 +38,6 @@ model_path = args.model_path
 dataset_name = args.dataset
 
 model = torch.load(model_path).to(device)
-print(next(model.parameters()).is_cuda)
 
 #load dataset
 
@@ -78,13 +79,14 @@ train_images = train_images / 255.0
 test_images = test_images / 255.0
 
 ds_list = [(train_images[i], train_labels[i]) for i in range(len(train_labels))]
-print(ds_list[0])
 random.shuffle(ds_list)
-print(ds_list[0])
+
+
 
 train_loader = torch.utils.data.DataLoader(ds_list[:training_samples], batch_size=batch_size)
 test_loader = torch.utils.data.DataLoader([(test_images[i],test_labels[i]) for i in range(len(test_labels))],shuffle=True,batch_size=batch_size)
 
+del train_images,train_labels,test_images,test_labels
 
 print("Train_Loader Iters:",len(train_loader),"\n")
 print("Test_Loader Iters:",len(test_loader),"\n")
@@ -101,8 +103,8 @@ print("Test_Loader Iters:",len(test_loader),"\n")
 
 
 
-optim = torch.optim.Adam(model.parameters(), lr=.1).to(device)
-#scheduler = ReduceLROnPlateau(optim, 'min', factor=0.5)
+optim = torch.optim.Adam(model.parameters(), lr=.1)
+scheduler = ReduceLROnPlateau(optim, 'min', factor=0.5)
 loss_fn = nn.CrossEntropyLoss()
 
 plateau = 0
@@ -125,12 +127,9 @@ for e in tqdm(range(5000)):
         x,y = batch
         optim.zero_grad()
         y = y.long().to(device)
-        x = x.to(device).float().to(device)
-        print("x,y:",x.is_cuda, y.is_cuda)
+        x = x.float().to(device)
 
-
-        y_hat = model(x.to(device).float().to(device))
-        loss = loss_fn(y_hat,y.long().to(device))
+        loss = loss_fn(model(x),y)
         loss.backward()
         optim.step()
 
@@ -156,16 +155,22 @@ for e in tqdm(range(5000)):
         accuracylist = []
         for batch in test_loader:
             x,y = batch
-            x.to(device)
-            y.to(device)
+            x = x.to(device).reshape((-1,1,28,28))
+            x = x.to(device)
+            y = y.to(device)
 
             y_hat = model(x.float())
+
+            loss = loss_fn(y_hat, y.long())
 
             accuracy = ((y_hat.argmax(axis=1)==y).sum()/(y.shape[0]))
             accuracylist.append(accuracy)
         final_acc = (sum(accuracylist))/len(accuracylist)
 
         writer.add_scalar("Test_Accuracy", final_acc, e)
+    
+    gc.collect()
+
     if done:
         break
 
