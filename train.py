@@ -100,6 +100,7 @@ print("Test_Loader Iters:",len(test_loader),"\n")
 
 lr = .1
 optim = torch.optim.Adam(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode="min", factor=.1)
 loss_fn = nn.CrossEntropyLoss()
 
 plateau = 0
@@ -111,8 +112,6 @@ prev_loss = 0
 
 losslist = []
 steps = 0
-
-lr_count = 0
 
 
 for e in tqdm(range(5000)):
@@ -148,23 +147,12 @@ for e in tqdm(range(5000)):
         plateau += 1
     else:
         plateau = 0
-
-    lr_count += 1
     
 
     min_loss = min(loss,min_loss)
 
     if plateau >= patience:
         done = True
-
-    # print("plat:",plateau)
-    # print("lr_count:", lr_count)
-
-    if plateau >= 50 and lr_count >=50:
-        lr *=.1
-        optim = torch.optim.Adam(model.parameters(), lr=lr)
-        print("Learning Rate Now:",lr)
-        lr_count = 0
 
     with torch.no_grad():#get validation accuracy and validation loss
         v_loss = []
