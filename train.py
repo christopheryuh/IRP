@@ -55,7 +55,7 @@ if dataset_name == "FashionMNIST":
     (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
 
 
-log_path = f"logs/{dataset_name}/'{model_path}'/{training_samples}"#tensorboard logging
+log_path = f"logs/{dataset_name}/{model_path[-6:-3]}/{training_samples}"#tensorboard logging
 print(log_path)
 writer = SummaryWriter(log_dir=log_path)
 
@@ -98,8 +98,8 @@ print("Test_Loader Iters:",len(test_loader),"\n")
 #I used this to make sure the right labels were with the right images
 
 
-optim = torch.optim.Adam(model.parameters(), lr=.1)
-scheduler = ReduceLROnPlateau(optim, 'min', factor=0.5)
+lr = .1
+optim = torch.optim.Adam(model.parameters(), lr=lr)
 loss_fn = nn.CrossEntropyLoss()
 
 plateau = 0
@@ -112,6 +112,9 @@ prev_loss = 0
 losslist = []
 steps = 0
 
+lr_count = 0
+
+
 for e in tqdm(range(5000)):
     e_steps = 1
     e_losslist = []
@@ -122,16 +125,23 @@ for e in tqdm(range(5000)):
         y = y.long().to(device)
         x = x.float().to(device)
 
+        before = list(model.parameters())[0].clone()
+
         loss = loss_fn(model(x),y)
         loss.backward()
         optim.step()
 
+        after = list(model.parameters())[0].clone()
+
+        print(torch.equal(before,after))
+        print((before-after).sum())
+
         steps += 1
         e_losslist.append(loss)
 
-        e_steps += 1 
+        e_steps += 1
 
-    losslist.append(sum(e_losslist)/e_steps)#avg loss over epoch
+    losslist.append((sum(e_losslist)/e_steps).detach())#avg loss over epoch
     writer.add_scalar("Train_Loss", sum(e_losslist)/e_steps, e)
 
     if min_loss < sum(e_losslist)/e_steps:#end training at convergance
@@ -139,10 +149,22 @@ for e in tqdm(range(5000)):
     else:
         plateau = 0
 
+    lr_count += 1
+    
+
     min_loss = min(loss,min_loss)
 
     if plateau >= patience:
         done = True
+
+    # print("plat:",plateau)
+    # print("lr_count:", lr_count)
+
+    if plateau >= 50 and lr_count >=50:
+        lr *=.1
+        optim = torch.optim.Adam(model.parameters(), lr=lr)
+        print("Learning Rate Now:",lr)
+        lr_count = 0
 
     with torch.no_grad():#get validation accuracy and validation loss
         v_loss = []
