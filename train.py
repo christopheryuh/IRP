@@ -1,5 +1,3 @@
-from lib2to3.pgen2.literals import test
-from tkinter import Y
 import torch
 
 from torch import nn
